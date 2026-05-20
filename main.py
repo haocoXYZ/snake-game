@@ -58,14 +58,11 @@ app_state = "menu"
 SCORE_FILE = "scores.json"
 
 # --- Fonts ---
-try:
-    font_style = pygame.font.SysFont("impact", 50)
-    score_font = pygame.font.SysFont("consolas", 24, bold=True)
-    btn_font = pygame.font.SysFont("impact", 25)
-except:
-    font_style = pygame.font.SysFont("arial", 50, bold=True)
-    score_font = pygame.font.SysFont("arial", 24, bold=True)
-    btn_font = pygame.font.SysFont("arial", 25, bold=True)
+font_style = pygame.font.Font(None, 50)
+score_font = pygame.font.Font(None, 24)
+score_font.set_bold(True)
+btn_font = pygame.font.Font(None, 25)
+btn_font.set_bold(True)
 
 def load_scores():
     if not os.path.exists(SCORE_FILE):

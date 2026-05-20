@@ -3,6 +3,7 @@ import random
 import sys
 import json
 import os
+import asyncio
 
 pygame.init()
 
@@ -238,8 +239,8 @@ def draw_button(msg, x, y, w, h, ic, ac, mouse_clicked, action=None):
     dis.blit(text_surf, text_rect)
 
 def quit_game():
-    pygame.quit()
-    sys.exit()
+    global app_state
+    app_state = "quit"
 
 def change_state(new_state):
     global app_state
@@ -262,7 +263,8 @@ def get_random_pos():
     y = round(random.randrange(PLAY_Y_START, HEIGHT - BLOCK_SIZE) / 20.0) * 20.0
     return x, y
 
-def mainMenu():
+async def mainMenu():
+    global app_state
     while app_state == "menu":
         mouse_clicked = False
         for event in pygame.event.get():
@@ -280,9 +282,11 @@ def mainMenu():
         draw_button("EXIT", 325, 390, 150, 50, (192, 57, 43), (231, 76, 60), mouse_clicked, quit_game)
 
         pygame.display.update()
+        await asyncio.sleep(0)
         clock.tick(30)
 
-def scoresMenu():
+async def scoresMenu():
+    global app_state
     while app_state == "scores":
         mouse_clicked = False
         for event in pygame.event.get():
@@ -313,9 +317,11 @@ def scoresMenu():
         draw_button("BACK", 350, 450, 100, 50, (127, 140, 141), (149, 165, 166), mouse_clicked, lambda: change_state("menu"))
 
         pygame.display.update()
+        await asyncio.sleep(0)
         clock.tick(30)
 
-def snakeSelectionMenu():
+async def snakeSelectionMenu():
+    global app_state
     while app_state == "selection":
         mouse_clicked = False
         for event in pygame.event.get():
@@ -334,9 +340,11 @@ def snakeSelectionMenu():
         draw_button("BACK", 350, 420, 100, 50, (127, 140, 141), (149, 165, 166), mouse_clicked, lambda: change_state("menu"))
 
         pygame.display.update()
+        await asyncio.sleep(0)
         clock.tick(30)
 
-def settingsMenu():
+async def settingsMenu():
+    global app_state
     while app_state == "settings":
         mouse_clicked = False
         for event in pygame.event.get():
@@ -359,9 +367,11 @@ def settingsMenu():
         draw_button("BACK", 350, 420, 100, 50, (127, 140, 141), (149, 165, 166), mouse_clicked, lambda: change_state("menu"))
 
         pygame.display.update()
+        await asyncio.sleep(0)
         clock.tick(30)
 
-def gameLoop():
+async def gameLoop():
+    global app_state
     game_over = False
     game_close = False
 
@@ -408,6 +418,7 @@ def gameLoop():
             draw_button("MAIN MENU", 410, 350, 140, 50, (211, 84, 0), (230, 126, 34), mouse_clicked, lambda: change_state("menu"))
 
             pygame.display.update()
+            await asyncio.sleep(0)
 
             if app_state != "game":
                 if app_state == "restart_game":
@@ -471,6 +482,7 @@ def gameLoop():
         draw_score(Length_of_snake - 1)
 
         pygame.display.update()
+        await asyncio.sleep(0)
 
         if x1 == foodx and y1 == foody:
             while True:
@@ -481,18 +493,22 @@ def gameLoop():
 
         clock.tick(SNAKE_SPEED)
 
-def run_app():
-    while True:
+async def main():
+    global app_state
+    while app_state != "quit":
         if app_state == "menu":
-            mainMenu()
+            await mainMenu()
         elif app_state == "selection":
-            snakeSelectionMenu()
+            await snakeSelectionMenu()
         elif app_state == "scores":
-            scoresMenu()
+            await scoresMenu()
         elif app_state == "settings":
-            settingsMenu()
+            await settingsMenu()
         elif app_state == "game":
-            gameLoop()
+            await gameLoop()
+
+    pygame.quit()
+    sys.exit()
 
 if __name__ == '__main__':
-    run_app()
+    asyncio.run(main())

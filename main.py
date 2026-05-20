@@ -7,6 +7,12 @@ import asyncio
 
 pygame.init()
 
+# Change directory to script's directory to resolve relative paths for web assets
+try:
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+except:
+    pass
+
 # --- Jungle Theme Colors ---
 BG_COLOR = (15, 40, 15)
 GRID_COLOR = (25, 55, 25)
@@ -58,11 +64,12 @@ app_state = "menu"
 SCORE_FILE = "scores.json"
 
 # --- Fonts ---
-font_style = pygame.font.Font(None, 50)
-score_font = pygame.font.Font(None, 24)
-score_font.set_bold(True)
-btn_font = pygame.font.Font(None, 25)
-btn_font.set_bold(True)
+try:
+    font_style = pygame.font.Font("Roboto.ttf", 50)
+    score_font = pygame.font.Font("Roboto.ttf", 24)
+    btn_font = pygame.font.Font("Roboto.ttf", 25)
+except:
+    pass
 
 def load_scores():
     if not os.path.exists(SCORE_FILE):
@@ -280,7 +287,6 @@ async def mainMenu():
 
         pygame.display.update()
         await asyncio.sleep(0)
-        clock.tick(30)
 
 async def scoresMenu():
     global app_state
@@ -298,24 +304,25 @@ async def scoresMenu():
         scores = load_scores()
         start_y = 150
         if not scores:
-            msg = score_font.render("No scores yet!", True, (255, 255, 255))
-            dis.blit(msg, (WIDTH/2 - msg.get_width()/2, 200))
+            try:
+                msg = score_font.render("No scores yet!", True, (255, 255, 255))
+                dis.blit(msg, (WIDTH/2 - msg.get_width()/2, 200))
+            except: pass
         else:
             for i, s in enumerate(scores):
-                msg = score_font.render(f"{i+1}. {s['snake']} - Score: {s['score']}", True, (255, 255, 255))
-                # Adding a nice background behind the text
-                bg_rect = msg.get_rect()
-                bg_rect.topleft = (WIDTH/2 - msg.get_width()/2, start_y + (i * 45))
-                bg_rect.inflate_ip(20, 10)
-                pygame.draw.rect(dis, (10, 25, 10, 180), bg_rect, border_radius=5)
-                
-                dis.blit(msg, (WIDTH/2 - msg.get_width()/2, start_y + (i * 45)))
+                try:
+                    msg = score_font.render(f"{i+1}. {s['snake']} - Score: {s['score']}", True, (255, 255, 255))
+                    bg_rect = msg.get_rect()
+                    bg_rect.topleft = (WIDTH/2 - msg.get_width()/2, start_y + (i * 45))
+                    bg_rect.inflate_ip(20, 10)
+                    pygame.draw.rect(dis, (10, 25, 10, 180), bg_rect, border_radius=5)
+                    dis.blit(msg, (WIDTH/2 - msg.get_width()/2, start_y + (i * 45)))
+                except: pass
 
         draw_button("BACK", 350, 450, 100, 50, (127, 140, 141), (149, 165, 166), mouse_clicked, lambda: change_state("menu"))
 
         pygame.display.update()
         await asyncio.sleep(0)
-        clock.tick(30)
 
 async def snakeSelectionMenu():
     global app_state
@@ -338,7 +345,6 @@ async def snakeSelectionMenu():
 
         pygame.display.update()
         await asyncio.sleep(0)
-        clock.tick(30)
 
 async def settingsMenu():
     global app_state
@@ -353,9 +359,11 @@ async def settingsMenu():
         dis.fill(BG_COLOR)
         message("SETTINGS", TEXT_COLOR, -180)
 
-        speed_msg = f"Current Speed: {SNAKE_SPEED}"
-        speed_surf = font_style.render(speed_msg, True, (255, 255, 255))
-        dis.blit(speed_surf, (WIDTH/2 - speed_surf.get_width()/2, HEIGHT/2 - 100))
+        try:
+            speed_msg = f"Current Speed: {SNAKE_SPEED}"
+            speed_surf = font_style.render(speed_msg, True, (255, 255, 255))
+            dis.blit(speed_surf, (WIDTH/2 - speed_surf.get_width()/2, HEIGHT/2 - 100))
+        except: pass
 
         draw_button("SLOW", 225, 300, 100, 50, (39, 174, 96), (46, 204, 113), mouse_clicked, lambda: set_speed(10))
         draw_button("NORMAL", 350, 300, 100, 50, (211, 84, 0), (230, 126, 34), mouse_clicked, lambda: set_speed(15))
@@ -365,7 +373,6 @@ async def settingsMenu():
 
         pygame.display.update()
         await asyncio.sleep(0)
-        clock.tick(30)
 
 async def gameLoop():
     global app_state
@@ -396,6 +403,8 @@ async def gameLoop():
         if [foodx, foody] not in obstacles and (foodx != x1 or foody != y1):
             break
 
+    last_move_time = pygame.time.get_ticks()
+
     while app_state == "game":
         while game_close == True:
             mouse_clicked = False
@@ -419,10 +428,8 @@ async def gameLoop():
 
             if app_state != "game":
                 if app_state == "restart_game":
-                    change_state("game") # Reset state to game so the main runner calls it again
+                    change_state("game") 
                 return
-                
-            clock.tick(30)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -441,71 +448,90 @@ async def gameLoop():
                     y1_change = BLOCK_SIZE
                     x1_change = 0
 
-        # Boundary collision
-        if x1 >= WIDTH or x1 < 0 or y1 >= HEIGHT or y1 < PLAY_Y_START:
-            save_score(Length_of_snake - 1, current_snake_name)
-            game_close = True
+        # Non-blocking timer for snake speed
+        now = pygame.time.get_ticks()
+        if now - last_move_time > (1000 / SNAKE_SPEED):
+            last_move_time = now
             
-        x1 += x1_change
-        y1 += y1_change
+            # Boundary collision
+            if x1 >= WIDTH or x1 < 0 or y1 >= HEIGHT or y1 < PLAY_Y_START:
+                save_score(Length_of_snake - 1, current_snake_name)
+                game_close = True
+                
+            x1 += x1_change
+            y1 += y1_change
 
-        # Obstacle collision
-        if not game_close and [x1, y1] in obstacles:
-            save_score(Length_of_snake - 1, current_snake_name)
-            game_close = True
+            # Obstacle collision
+            if not game_close and [x1, y1] in obstacles:
+                save_score(Length_of_snake - 1, current_snake_name)
+                game_close = True
+
+            snake_Head = []
+            snake_Head.append(x1)
+            snake_Head.append(y1)
+            snake_List.append(snake_Head)
+            
+            if len(snake_List) > Length_of_snake:
+                del snake_List[0]
+
+            # Self collision
+            for x in snake_List[:-1]:
+                if x == snake_Head:
+                    if not game_close:
+                        save_score(Length_of_snake - 1, current_snake_name)
+                        game_close = True
+                        
+            if x1 == foodx and y1 == foody:
+                while True:
+                    foodx, foody = get_random_pos()
+                    if [foodx, foody] not in obstacles and [foodx, foody] not in snake_List:
+                        break
+                Length_of_snake += 1
 
         dis.fill(BG_COLOR)
         draw_grid()
         
         draw_food(foodx, foody, BLOCK_SIZE)
         draw_obstacles(BLOCK_SIZE, obstacles)
-        
-        snake_Head = []
-        snake_Head.append(x1)
-        snake_Head.append(y1)
-        snake_List.append(snake_Head)
-        
-        if len(snake_List) > Length_of_snake:
-            del snake_List[0]
-
-        # Self collision
-        for x in snake_List[:-1]:
-            if x == snake_Head:
-                if not game_close:
-                    save_score(Length_of_snake - 1, current_snake_name)
-                    game_close = True
-
         draw_snake(BLOCK_SIZE, snake_List, x1_change, y1_change)
         draw_score(Length_of_snake - 1)
 
         pygame.display.update()
         await asyncio.sleep(0)
 
-        if x1 == foodx and y1 == foody:
-            while True:
-                foodx, foody = get_random_pos()
-                if [foodx, foody] not in obstacles and [foodx, foody] not in snake_List:
-                    break
-            Length_of_snake += 1
-
-        clock.tick(SNAKE_SPEED)
-
 async def main():
-    global app_state
-    while app_state != "quit":
-        if app_state == "menu":
-            await mainMenu()
-        elif app_state == "selection":
-            await snakeSelectionMenu()
-        elif app_state == "scores":
-            await scoresMenu()
-        elif app_state == "settings":
-            await settingsMenu()
-        elif app_state == "game":
-            await gameLoop()
+    try:
+        global app_state
+        while app_state != "quit":
+            if app_state == "menu":
+                await mainMenu()
+            elif app_state == "selection":
+                await snakeSelectionMenu()
+            elif app_state == "scores":
+                await scoresMenu()
+            elif app_state == "settings":
+                await settingsMenu()
+            elif app_state == "game":
+                await gameLoop()
+            
+            await asyncio.sleep(0)
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        dis.fill((200, 0, 0))
+        try:
+            sys_font = pygame.font.Font(None, 20)
+            y = 10
+            for line in err.split('\n'):
+                dis.blit(sys_font.render(line, True, (255, 255, 255)), (10, y))
+                y += 20
+        except:
+            pass
+        pygame.display.update()
+        while True:
+            await asyncio.sleep(0)
 
-    pygame.quit()
-    sys.exit()
+    return
 
 if __name__ == '__main__':
     asyncio.run(main())

@@ -71,6 +71,25 @@ try:
 except:
     pass
 
+# --- Background Image ---
+bg_img = None
+try:
+    bg_img = pygame.image.load("jungle_bg.png")
+    bg_img = pygame.transform.scale(bg_img, (WIDTH, HEIGHT - PLAY_Y_START))
+except Exception as e:
+    pass
+
+def draw_game_background():
+    if bg_img:
+        dis.blit(bg_img, (0, PLAY_Y_START))
+        # Draw a semi-transparent dark overlay to keep gameplay elements highly readable
+        overlay = pygame.Surface((WIDTH, HEIGHT - PLAY_Y_START))
+        overlay.set_alpha(70)  # transparency (0-255)
+        overlay.fill((0, 0, 0)) # black overlay
+        dis.blit(overlay, (0, PLAY_Y_START))
+    else:
+        dis.fill(BG_COLOR)
+
 def load_scores():
     if not os.path.exists(SCORE_FILE):
         return []
@@ -365,14 +384,19 @@ async def settingsMenu():
             dis.blit(speed_surf, (WIDTH/2 - speed_surf.get_width()/2, HEIGHT/2 - 100))
         except: pass
 
-        draw_button("SLOW", 225, 300, 100, 50, (39, 174, 96), (46, 204, 113), mouse_clicked, lambda: set_speed(10))
+        draw_button("V. SLOW", 120, 300, 100, 50, (22, 160, 133), (26, 188, 156), mouse_clicked, lambda: set_speed(5))
+        draw_button("SLOW", 235, 300, 100, 50, (39, 174, 96), (46, 204, 113), mouse_clicked, lambda: set_speed(10))
         draw_button("NORMAL", 350, 300, 100, 50, (211, 84, 0), (230, 126, 34), mouse_clicked, lambda: set_speed(15))
-        draw_button("FAST", 475, 300, 100, 50, (192, 57, 43), (231, 76, 60), mouse_clicked, lambda: set_speed(25))
+        draw_button("FAST", 465, 300, 100, 50, (192, 57, 43), (231, 76, 60), mouse_clicked, lambda: set_speed(20))
+        draw_button("V. FAST", 580, 300, 100, 50, (142, 68, 173), (155, 89, 182), mouse_clicked, lambda: set_speed(25))
         
         draw_button("BACK", 350, 420, 100, 50, (127, 140, 141), (149, 165, 166), mouse_clicked, lambda: change_state("menu"))
 
         pygame.display.update()
         await asyncio.sleep(0)
+
+def is_opposite(dir1, dir2):
+    return dir1[0] * dir2[0] + dir1[1] * dir2[1] < 0
 
 async def gameLoop():
     global app_state
@@ -384,6 +408,7 @@ async def gameLoop():
 
     x1_change = 0
     y1_change = 0
+    direction_queue = []
 
     snake_List = []
     Length_of_snake = 1
@@ -414,7 +439,7 @@ async def gameLoop():
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     mouse_clicked = True
 
-            dis.fill(BG_COLOR)
+            draw_game_background()
             draw_grid()
             draw_score(Length_of_snake - 1)
             
@@ -435,23 +460,33 @@ async def gameLoop():
             if event.type == pygame.QUIT:
                 quit_game()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT and x1_change == 0:
-                    x1_change = -BLOCK_SIZE
-                    y1_change = 0
-                elif event.key == pygame.K_RIGHT and x1_change == 0:
-                    x1_change = BLOCK_SIZE
-                    y1_change = 0
-                elif event.key == pygame.K_UP and y1_change == 0:
-                    y1_change = -BLOCK_SIZE
-                    x1_change = 0
-                elif event.key == pygame.K_DOWN and y1_change == 0:
-                    y1_change = BLOCK_SIZE
-                    x1_change = 0
+                proposed_dir = None
+                if event.key == pygame.K_LEFT:
+                    proposed_dir = (-BLOCK_SIZE, 0)
+                elif event.key == pygame.K_RIGHT:
+                    proposed_dir = (BLOCK_SIZE, 0)
+                elif event.key == pygame.K_UP:
+                    proposed_dir = (0, -BLOCK_SIZE)
+                elif event.key == pygame.K_DOWN:
+                    proposed_dir = (0, BLOCK_SIZE)
+
+                if proposed_dir is not None:
+                    if direction_queue:
+                        ref_dir = direction_queue[-1]
+                    else:
+                        ref_dir = (x1_change, y1_change)
+                    
+                    if not is_opposite(proposed_dir, ref_dir):
+                        if len(direction_queue) < 2:
+                            direction_queue.append(proposed_dir)
 
         # Non-blocking timer for snake speed
         now = pygame.time.get_ticks()
         if now - last_move_time > (1000 / SNAKE_SPEED):
             last_move_time = now
+            
+            if direction_queue:
+                x1_change, y1_change = direction_queue.pop(0)
             
             # Boundary collision
             if x1 >= WIDTH or x1 < 0 or y1 >= HEIGHT or y1 < PLAY_Y_START:
@@ -488,7 +523,7 @@ async def gameLoop():
                         break
                 Length_of_snake += 1
 
-        dis.fill(BG_COLOR)
+        draw_game_background()
         draw_grid()
         
         draw_food(foodx, foody, BLOCK_SIZE)

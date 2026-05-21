@@ -62,6 +62,7 @@ SNAKE_SPEED = 15
 # App State
 app_state = "menu"
 SCORE_FILE = "scores.json"
+SETTINGS_FILE = "settings.json"
 
 # --- Fonts ---
 try:
@@ -86,13 +87,23 @@ def draw_game_background():
         dis.fill(BG_COLOR)
 
 def load_scores():
-    if not os.path.exists(SCORE_FILE):
+    if sys.platform == "emscripten":
+        try:
+            from platform import window
+            saved_data = window.localStorage.getItem("jungle_snake_scores")
+            if saved_data:
+                return json.loads(saved_data)
+        except Exception as e:
+            pass
         return []
-    try:
-        with open(SCORE_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
+    else:
+        if not os.path.exists(SCORE_FILE):
+            return []
+        try:
+            with open(SCORE_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return []
 
 def save_score(score, snake_name):
     scores = load_scores()
@@ -101,11 +112,66 @@ def save_score(score, snake_name):
     scores = sorted(scores, key=lambda x: x["score"], reverse=True)
     # Keep top 5
     scores = scores[:5]
-    try:
-        with open(SCORE_FILE, "w") as f:
-            json.dump(scores, f)
-    except:
-        pass
+    
+    if sys.platform == "emscripten":
+        try:
+            from platform import window
+            window.localStorage.setItem("jungle_snake_scores", json.dumps(scores))
+        except Exception as e:
+            pass
+    else:
+        try:
+            with open(SCORE_FILE, "w") as f:
+                json.dump(scores, f)
+        except:
+            pass
+
+def load_settings():
+    global SNAKE_SPEED, SNAKE_BODY, SNAKE_HEAD, current_snake_name, current_snake_id
+    data = None
+    if sys.platform == "emscripten":
+        try:
+            from platform import window
+            saved_data = window.localStorage.getItem("jungle_snake_settings")
+            if saved_data:
+                data = json.loads(saved_data)
+        except:
+            pass
+    else:
+        if os.path.exists(SETTINGS_FILE):
+            try:
+                with open(SETTINGS_FILE, "r") as f:
+                    data = json.load(f)
+            except:
+                pass
+    if data:
+        if "speed" in data:
+            SNAKE_SPEED = data["speed"]
+        if "snake_id" in data:
+            snake_id = data["snake_id"]
+            if snake_id in SNAKE_PROFILES:
+                SNAKE_BODY = SNAKE_PROFILES[snake_id]["body"]
+                SNAKE_HEAD = SNAKE_PROFILES[snake_id]["head"]
+                current_snake_name = SNAKE_PROFILES[snake_id]["name"]
+                current_snake_id = snake_id
+
+def save_settings():
+    data = {
+        "speed": SNAKE_SPEED,
+        "snake_id": current_snake_id
+    }
+    if sys.platform == "emscripten":
+        try:
+            from platform import window
+            window.localStorage.setItem("jungle_snake_settings", json.dumps(data))
+        except:
+            pass
+    else:
+        try:
+            with open(SETTINGS_FILE, "w") as f:
+                json.dump(data, f)
+        except:
+            pass
 
 def draw_grid():
     for x in range(0, WIDTH, BLOCK_SIZE):
@@ -336,6 +402,7 @@ def change_state(new_state):
 def set_speed(speed):
     global SNAKE_SPEED
     SNAKE_SPEED = speed
+    save_settings()
 
 def select_snake(snake_id):
     global SNAKE_BODY, SNAKE_HEAD, current_snake_name, current_snake_id, app_state
@@ -343,6 +410,7 @@ def select_snake(snake_id):
     SNAKE_HEAD = SNAKE_PROFILES[snake_id]["head"]
     current_snake_name = SNAKE_PROFILES[snake_id]["name"]
     current_snake_id = snake_id
+    save_settings()
     app_state = "game"
 
 def get_random_pos():
@@ -666,6 +734,7 @@ async def gameLoop():
 async def main():
     try:
         global app_state
+        load_settings()
         while app_state != "quit":
             if app_state == "menu":
                 await mainMenu()

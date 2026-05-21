@@ -127,14 +127,31 @@ def draw_score(score):
     speed_txt = score_font.render(f"SPEED: {SNAKE_SPEED}", True, TEXT_COLOR)
     dis.blit(speed_txt, [WIDTH - 150, 8])
 
-def draw_snake(block_size, snake_list, x_change=0, y_change=0):
+def draw_snake(block_size, snake_list, prev_snake_list, t, x_change=0, y_change=0):
+    n = len(snake_list)
+    m = len(prev_snake_list)
     for i, x in enumerate(snake_list):
-        rect = [x[0], x[1], block_size, block_size]
-        is_head = (i == len(snake_list) - 1)
+        is_head = (i == n - 1)
         is_tail = (i == 0)
         
+        # Calculate interpolated position for smooth drawing
+        if m > 0:
+            d = (n - 1) - i
+            j = (m - 1) - d
+            if j >= 0:
+                prev_pos = prev_snake_list[j]
+            else:
+                prev_pos = x
+            draw_x = prev_pos[0] + (x[0] - prev_pos[0]) * t
+            draw_y = prev_pos[1] + (x[1] - prev_pos[1]) * t
+        else:
+            draw_x = x[0]
+            draw_y = x[1]
+            
+        rect = [draw_x, draw_y, block_size, block_size]
+        
         dx, dy = 0, -1
-        if len(snake_list) > 1:
+        if n > 1:
             if is_head:
                 prev = snake_list[-2]
                 dx = x[0] - prev[0]
@@ -159,13 +176,13 @@ def draw_snake(block_size, snake_list, x_change=0, y_change=0):
                 hood_color = (139, 101, 8)
                 hood_rect = None
                 if dx > 0:
-                    hood_rect = [x[0] - 5, x[1] - 8, block_size, block_size + 16]
+                    hood_rect = [draw_x - 5, draw_y - 8, block_size, block_size + 16]
                 elif dx < 0:
-                    hood_rect = [x[0] + 5, x[1] - 8, block_size, block_size + 16]
+                    hood_rect = [draw_x + 5, draw_y - 8, block_size, block_size + 16]
                 elif dy > 0:
-                    hood_rect = [x[0] - 8, x[1] - 5, block_size + 16, block_size]
+                    hood_rect = [draw_x - 8, draw_y - 5, block_size + 16, block_size]
                 elif dy < 0:
-                    hood_rect = [x[0] - 8, x[1] + 5, block_size + 16, block_size]
+                    hood_rect = [draw_x - 8, draw_y + 5, block_size + 16, block_size]
                 
                 if hood_rect:
                     pygame.draw.ellipse(dis, hood_color, hood_rect)
@@ -173,7 +190,7 @@ def draw_snake(block_size, snake_list, x_change=0, y_change=0):
             pygame.draw.rect(dis, SNAKE_HEAD, rect, border_radius=6)
             
             eye_radius = 3
-            cx, cy = x[0] + block_size/2, x[1] + block_size/2
+            cx, cy = draw_x + block_size/2, draw_y + block_size/2
             
             if dx > 0:
                 ex1, ey1 = cx + 4, cy - 5
@@ -208,19 +225,19 @@ def draw_snake(block_size, snake_list, x_change=0, y_change=0):
 
         else:
             if is_tail:
-                pygame.draw.rect(dis, SNAKE_BODY, [x[0]+4, x[1]+4, block_size-8, block_size-8], border_radius=4)
+                pygame.draw.rect(dis, SNAKE_BODY, [draw_x+4, draw_y+4, block_size-8, block_size-8], border_radius=4)
             else:
                 pygame.draw.rect(dis, SNAKE_BODY, rect, border_radius=4)
             
             if current_snake_id == "cobra" and i % 2 == 0:
-                pygame.draw.rect(dis, (238, 203, 50), [x[0]+6, x[1]+6, block_size-12, block_size-12], border_radius=2)
+                pygame.draw.rect(dis, (238, 203, 50), [draw_x+6, draw_y+6, block_size-12, block_size-12], border_radius=2)
             elif current_snake_id == "taipan":
                 if dx != 0:
-                    pygame.draw.line(dis, (65, 85, 27), (x[0], x[1] + block_size/2), (x[0] + block_size, x[1] + block_size/2), 3)
+                    pygame.draw.line(dis, (65, 85, 27), (draw_x, draw_y + block_size/2), (draw_x + block_size, draw_y + block_size/2), 3)
                 else:
-                    pygame.draw.line(dis, (65, 85, 27), (x[0] + block_size/2, x[1]), (x[0] + block_size/2, x[1] + block_size), 3)
+                    pygame.draw.line(dis, (65, 85, 27), (draw_x + block_size/2, draw_y), (draw_x + block_size/2, draw_y + block_size), 3)
             elif current_snake_id == "mamba":
-                pygame.draw.circle(dis, (80, 80, 80), (int(x[0]+block_size/2), int(x[1]+block_size/2)), 2)
+                pygame.draw.circle(dis, (80, 80, 80), (int(draw_x+block_size/2), int(draw_y+block_size/2)), 2)
 
 def draw_obstacles(block_size, obstacles):
     for obs in obstacles:
@@ -411,6 +428,7 @@ async def gameLoop():
     direction_queue = []
 
     snake_List = []
+    prev_snake_List = []
     Length_of_snake = 1
 
     num_obstacles = 15
@@ -485,6 +503,9 @@ async def gameLoop():
         if now - last_move_time > (1000 / SNAKE_SPEED):
             last_move_time = now
             
+            # Save previous state for smooth interpolation
+            prev_snake_List = [list(pos) for pos in snake_List]
+            
             if direction_queue:
                 x1_change, y1_change = direction_queue.pop(0)
             
@@ -523,12 +544,17 @@ async def gameLoop():
                         break
                 Length_of_snake += 1
 
+        # Calculate interpolation factor
+        step_duration = 1000.0 / SNAKE_SPEED
+        t = (now - last_move_time) / step_duration
+        t = max(0.0, min(1.0, t))
+
         draw_game_background()
         draw_grid()
         
         draw_food(foodx, foody, BLOCK_SIZE)
         draw_obstacles(BLOCK_SIZE, obstacles)
-        draw_snake(BLOCK_SIZE, snake_List, x1_change, y1_change)
+        draw_snake(BLOCK_SIZE, snake_List, prev_snake_List, t, x1_change, y1_change)
         draw_score(Length_of_snake - 1)
 
         pygame.display.update()

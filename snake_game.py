@@ -82,11 +82,6 @@ except Exception as e:
 def draw_game_background():
     if bg_img:
         dis.blit(bg_img, (0, PLAY_Y_START))
-        # Draw a semi-transparent dark overlay to keep gameplay elements highly readable
-        overlay = pygame.Surface((WIDTH, HEIGHT - PLAY_Y_START))
-        overlay.set_alpha(70)  # transparency (0-255)
-        overlay.fill((0, 0, 0)) # black overlay
-        dis.blit(overlay, (0, PLAY_Y_START))
     else:
         dis.fill(BG_COLOR)
 
@@ -239,11 +234,63 @@ def draw_snake(block_size, snake_list, prev_snake_list, t, x_change=0, y_change=
             elif current_snake_id == "mamba":
                 pygame.draw.circle(dis, (80, 80, 80), (int(draw_x+block_size/2), int(draw_y+block_size/2)), 2)
 
-def draw_obstacles(block_size, obstacles):
-    for obs in obstacles:
-        center = (int(obs[0] + block_size/2), int(obs[1] + block_size/2))
-        pygame.draw.circle(dis, OBSTACLE_COLOR, center, int(block_size/2 - 1))
-        pygame.draw.circle(dis, OBSTACLE_INNER, center, int(block_size/3 - 1))
+def draw_obstacles(block_size, obstacles_data):
+    for obj in obstacles_data:
+        t = obj['type']
+        rx, ry = obj['x'], obj['y']
+        rw, rh = obj['rw'], obj['rh']
+        w_cells, h_cells = obj['w_cells'], obj['h_cells']
+        
+        if t == 'rock':
+            # Grey granite rock
+            pygame.draw.rect(dis, (100, 110, 100), [rx, ry, rw, rh], border_radius=6)
+            if rw >= 20 and rh >= 20:
+                inner_rect = [rx + 3, ry + 3, rw - 6, rh - 6]
+                pygame.draw.rect(dis, (70, 78, 70), inner_rect, border_radius=4)
+                if rw > 20 or rh > 20:
+                    highlight_rect = [rx + 5, ry + 5, rw - 12, rh - 12]
+                    pygame.draw.rect(dis, (130, 140, 130), highlight_rect, border_radius=3)
+        
+        elif t == 'pond':
+            # Water pond (Blue)
+            pygame.draw.rect(dis, (41, 128, 185), [rx, ry, rw, rh], border_radius=10)
+            pygame.draw.rect(dis, (100, 200, 255), [rx, ry, rw, rh], width=2, border_radius=10)
+            if rw >= 40 and rh >= 40:
+                pygame.draw.ellipse(dis, (52, 152, 219), [rx + 6, ry + 6, rw - 12, rh - 12])
+                pygame.draw.ellipse(dis, (135, 206, 250), [rx + 12, ry + 12, rw - 24, rh - 24], width=1)
+                pygame.draw.circle(dis, (39, 174, 96), (int(rx + 12), int(ry + 15)), 4)
+                pygame.draw.circle(dis, (39, 174, 96), (int(rx + rw - 15), int(ry + rh - 15)), 3)
+                
+        elif t == 'log':
+            # Wood log (Brown)
+            pygame.draw.rect(dis, (139, 69, 19), [rx, ry, rw, rh], border_radius=5)
+            pygame.draw.rect(dis, (101, 50, 14), [rx + 2, ry + 2, rw - 4, rh - 4], border_radius=4)
+            if w_cells > h_cells:
+                # Horizontal log
+                pygame.draw.ellipse(dis, (222, 184, 135), [rx, ry + 1, 4, rh - 2])
+                pygame.draw.ellipse(dis, (222, 184, 135), [rx + rw - 4, ry + 1, 4, rh - 2])
+                pygame.draw.line(dis, (139, 69, 19), (rx + 6, ry + rh/2), (rx + rw - 8, ry + rh/2), 2)
+            else:
+                # Vertical log
+                pygame.draw.ellipse(dis, (222, 184, 135), [rx + 1, ry, rw - 2, 4])
+                pygame.draw.ellipse(dis, (222, 184, 135), [rx + 1, ry + rh - 4, rw - 2, 4])
+                pygame.draw.line(dis, (139, 69, 19), (rx + rw/2, ry + 6), (rx + rw/2, ry + rh - 8), 2)
+                
+        elif t == 'tree':
+            # Tree (trunk + canopy)
+            if w_cells == 1 and h_cells == 2:
+                # Trunk
+                pygame.draw.rect(dis, (101, 50, 14), [rx + 6, ry + 16, 8, 24], border_radius=2)
+                # Leaves canopy
+                pygame.draw.circle(dis, (34, 139, 34), (int(rx + 10), int(ry + 10)), 12)
+                pygame.draw.circle(dis, (46, 204, 113), (int(rx + 10), int(ry + 8)), 8)
+            elif w_cells == 2 and h_cells == 2:
+                # Trunk
+                pygame.draw.rect(dis, (101, 50, 14), [rx + 14, ry + 20, 12, 20], border_radius=3)
+                # Canopy
+                pygame.draw.circle(dis, (34, 139, 34), (int(rx + 14), int(ry + 14)), 14)
+                pygame.draw.circle(dis, (34, 139, 34), (int(rx + 26), int(ry + 14)), 14)
+                pygame.draw.circle(dis, (46, 204, 113), (int(rx + 20), int(ry + 10)), 12)
 
 def draw_food(x, y, block_size):
     center = (int(x + block_size/2), int(y + block_size/2))
@@ -431,14 +478,70 @@ async def gameLoop():
     prev_snake_List = []
     Length_of_snake = 1
 
-    num_obstacles = 15
+    obstacles_data = []
     obstacles = []
-    for _ in range(num_obstacles):
-        while True:
-            obs_x, obs_y = get_random_pos()
-            dist_to_center = abs(obs_x - x1) + abs(obs_y - y1)
-            if dist_to_center > 100:
-                obstacles.append([obs_x, obs_y])
+    num_obstacles = 9
+    
+    types_pool = ['pond', 'pond', 'tree', 'tree', 'log', 'log', 'rock', 'rock', 'rock']
+    
+    for obj_type in types_pool:
+        if obj_type == 'pond':
+            w_cells, h_cells = 2, 2
+        elif obj_type == 'tree':
+            w_cells, h_cells = random.choice([(1, 2), (2, 2)])
+        elif obj_type == 'log':
+            w_cells, h_cells = random.choice([(2, 1), (1, 2)])
+        else: # rock
+            w_cells, h_cells = random.choice([(1, 1), (2, 1), (1, 2), (2, 2)])
+            
+        rw = w_cells * BLOCK_SIZE
+        rh = h_cells * BLOCK_SIZE
+        
+        placed = False
+        for _ in range(150):
+            rx = round(random.randrange(BLOCK_SIZE, WIDTH - rw - BLOCK_SIZE) / 20.0) * 20.0
+            ry = round(random.randrange(PLAY_Y_START + BLOCK_SIZE, HEIGHT - rh - BLOCK_SIZE) / 20.0) * 20.0
+            
+            too_close = False
+            for cx in range(w_cells):
+                for cy in range(h_cells):
+                    px = rx + cx * BLOCK_SIZE
+                    py = ry + cy * BLOCK_SIZE
+                    dist_to_center = abs(px - x1) + abs(py - y1)
+                    if dist_to_center < 120:
+                        too_close = True
+                        break
+                if too_close:
+                    break
+                    
+            if too_close:
+                continue
+                
+            conflict = False
+            for cx in range(-1, w_cells + 1):
+                for cy in range(-1, h_cells + 1):
+                    check_x = rx + cx * BLOCK_SIZE
+                    check_y = ry + cy * BLOCK_SIZE
+                    if [check_x, check_y] in obstacles:
+                        conflict = True
+                        break
+                if conflict:
+                    break
+                    
+            if not conflict:
+                obstacles_data.append({
+                    'type': obj_type,
+                    'x': rx,
+                    'y': ry,
+                    'w_cells': w_cells,
+                    'h_cells': h_cells,
+                    'rw': rw,
+                    'rh': rh
+                })
+                for cx in range(w_cells):
+                    for cy in range(h_cells):
+                        obstacles.append([rx + cx * BLOCK_SIZE, ry + cy * BLOCK_SIZE])
+                placed = True
                 break
 
     while True:
@@ -553,7 +656,7 @@ async def gameLoop():
         draw_grid()
         
         draw_food(foodx, foody, BLOCK_SIZE)
-        draw_obstacles(BLOCK_SIZE, obstacles)
+        draw_obstacles(BLOCK_SIZE, obstacles_data)
         draw_snake(BLOCK_SIZE, snake_List, prev_snake_List, t, x1_change, y1_change)
         draw_score(Length_of_snake - 1)
 
